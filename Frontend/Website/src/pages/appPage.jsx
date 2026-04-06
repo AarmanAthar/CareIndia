@@ -1,44 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 
 export default function VoiceAppPage() {
   // App States: 'idle' | 'listening' | 'processing' | 'speaking'
   const [appState, setAppState] = useState('idle');
-  const [language, setLanguage] = useState('English');
-  
-  // Text to display as "subtitles"
+  const [languageCode, setLanguageCode] = useState('hi-IN');
   const [displayText, setDisplayText] = useState('Tap the microphone and tell me how you are feeling.');
 
-  // Mock flow to demonstrate the voice UI
-  const handleMicClick = () => {
-    if (appState === 'idle' || appState === 'speaking') {
-      setAppState('listening');
-      setDisplayText('Listening...');
-      
-      // Auto-stop listening after 3 seconds for demo purposes
-        setTimeout(() => {
-        setAppState('processing');
-        setDisplayText(`Translating from ${language} and analyzing symptoms...`);
-        
-        // Mock AI thinking time
-        setTimeout(() => {
-          setAppState('speaking');
-          setDisplayText('I understand you have a slight fever and headache. Please drink plenty of water and rest. If it persists for 2 days, visit your local clinic.');
-        }, 2500);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
-        
-      }, 3000);
+  const sendAudioToBackend = async (blob) => {
+    setAppState('processing');
+    setDisplayText('Translating and thinking...');
     
-    } else if (appState === 'listening') {
-      // Manual stop
-      setAppState('processing');
-      setDisplayText('Processing your voice...');
-    }
+    const formData = new FormData();
+    // FIX 1: Name the key "file" (Verify this matches your backend FastAPI parameter!)
+    formData.append("file", blob, "user_voice.webm");
+    
+    // FIX 2: Send the language code to the backend so Sarvam knows what to expect
+    formData.append("language", languageCode); 
 
-    setTimeout(()=>{
+    try {
+        // Replace with your actual local backend URL, e.g., "http://localhost:8000/api/chat"
+        const response = await fetch("http://localhost:8000/api/chat", {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error("Backend connection failed");
+        }
+        
+        const aiVoiceBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(aiVoiceBlob);
+
+        const audio = new Audio(audioUrl);
+        
+        // FIX 3: Track when AI starts and stops speaking!
+        audio.onplay = () => {
+            setAppState('speaking');
+            setDisplayText('AI is responding...');
+        };
+        
+        audio.onended = () => {
+            setAppState('idle');
+            setDisplayText('Tap the microphone to reply.');
+        };
+
+        audio.play();
+
+    } catch (e) {
+        console.error("error sending audio to backend", e);
         setAppState('idle');
-        setDisplayText('Tap the microphone and tell me how you are feeling.')
-    },12000)
-  };
+        setDisplayText('Connection failed. Please try again.');
+    }
+  }
+
+  const startRecording = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunksRef.current.push(event.data);
+            }
+        }
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            stream.getTracks().forEach(track => track.stop());
+            await sendAudioToBackend(audioBlob);
+        }
+
+        mediaRecorder.start();
+        setAppState('listening');
+        setDisplayText('Listening...');
+    } catch (e) {
+        console.error("Mic access denied", e); 
+        alert("Give permission to access mic");
+        setAppState('idle');
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && appState === 'listening') {
+        mediaRecorderRef.current.stop();
+        // State changes to 'processing' inside sendAudioToBackend
+    }
+  }
 
   // --- STYLES ---
   const colors = {
@@ -94,7 +146,6 @@ export default function VoiceAppPage() {
       padding: '20px',
       position: 'relative'
     },
-    // The massive central button
     micButtonWrapper: {
       position: 'relative',
       display: 'flex',
@@ -120,7 +171,6 @@ export default function VoiceAppPage() {
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       transform: appState === 'listening' ? 'scale(1.1)' : 'scale(1)',
     },
-    // The pulsating rings behind the button
     ripple: {
       position: 'absolute',
       width: '100%',
@@ -157,20 +207,9 @@ export default function VoiceAppPage() {
       fontWeight: '500',
       color: colors.textDark,
       transition: 'all 0.3s ease',
-    },
-    keyboardFallback: {
-      position: 'absolute',
-      bottom: '30px',
-      background: 'none',
-      border: 'none',
-      color: colors.textLight,
-      textDecoration: 'underline',
-      cursor: 'pointer',
-      fontSize: '14px'
     }
   };
 
-  // Icons based on state
   const getIcon = () => {
     if (appState === 'processing') {
       return <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.3)', borderTop: '4px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />;
@@ -191,7 +230,6 @@ export default function VoiceAppPage() {
 
   return (
     <div style={styles.container}>
-      {/* Injecting CSS Keyframes for sleek animations */}
       <style>
         {`
           @keyframes pulse-ring {
@@ -209,21 +247,27 @@ export default function VoiceAppPage() {
         `}
       </style>
 
-      {/* Header */}
       <header style={styles.header}>
         <div style={styles.brand}>
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: colors.primary }}></div>
           CareIndia AI
         </div>
-        <select style={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
-          <option value="English">English</option>
-          <option value="Hindi">हिंदी (Hindi)</option>
-          <option value="Bengali">বাংলা (Bengali)</option>
-          <option value="Telugu">తెలుగు (Telugu)</option>
+        {/* FIX 4: Bind value to languageCode so it updates visually */}
+        <select style={styles.select} value={languageCode} onChange={(e) => setLanguageCode(e.target.value)}>
+          <option value="hi-IN">हिंदी (Hindi)</option>
+          <option value="en-IN">English</option>
+          <option value="bn-IN">বাংলা (Bengali)</option>
+          <option value="te-IN">తెలుగు (Telugu)</option>
+          <option value="ta-IN">தமிழ் (Tamil)</option>
+          <option value="kn-IN">ಕನ್ನಡ (Kannada)</option>
+          <option value="ml-IN">മലയാളം (Malayalam)</option>
+          <option value="mr-IN">मराठी (Marathi)</option>
+          <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+          <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+          <option value="od-IN">ଓଡ଼ିଆ (Odia)</option>
         </select>
       </header>
 
-      {/* Main Voice Interface */}
       <main style={styles.main}>
         
         <div style={styles.statusText}>
@@ -233,11 +277,10 @@ export default function VoiceAppPage() {
           {appState === 'speaking' && 'AI Responding'}
         </div>
 
-        {/* Central Orb */}
         <div style={styles.micButtonWrapper}>
           <div style={styles.ripple}></div>
           <button 
-            onClick={handleMicClick} 
+            onClick={() => { appState === 'listening' ? stopRecording() : startRecording() }} 
             style={styles.micButton}
             disabled={appState === 'processing'}
           >
@@ -245,14 +288,13 @@ export default function VoiceAppPage() {
           </button>
         </div>
 
-        {/* Subtitles (Replaces Chat History) */}
         <div style={styles.subtitleBox}>
           <p style={{
             ...styles.subtitleText,
             color: appState === 'listening' ? colors.textLight : colors.textDark,
-            fontSize: displayText.length > 80 ? '22px' : '28px' // Shrink text if it's very long
+            fontSize: displayText.length > 80 ? '22px' : '28px'
           }}>
-            "{displayText}"
+            {displayText}
           </p>
         </div>
 
