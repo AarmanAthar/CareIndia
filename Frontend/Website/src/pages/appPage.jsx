@@ -3,7 +3,7 @@ export default function AppPage(){
 
     return(
         <h1>
-            Priyam is great always
+            This will be the main app 
         </h1>
     )
 }
