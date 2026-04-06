@@ -5,6 +5,8 @@ export default function LandingPage(){
 
     const navigate = useNavigate();
     const green = "#16a34a";
+    const languageNames = ['English', 'हिंद', 'اردو', 'বাংলা', 'தமிழ்', 'తెలుగు', 'मराठी', 'ગુજરાતી',
+'ಕನ್ನಡ', 'മലയാളം', 'ਪੰਜਾਬੀ','ଓଡ଼ିଆ', 'অসমীয়া', 'संस्कृतम्', 'کٲشُر'  , 'سنڌي', 'कोंकणी', 'ꯃꯤꯇꯩ ꯂꯣꯟ', 'बड़ो', 'ᱥᱟᱱᱛᱟᱲᱤ'  ]
 
     return(
         <div style={{ fontFamily: "Arial, sans-serif", color: "#000", background: "#fff" }}>
@@ -16,7 +18,7 @@ export default function LandingPage(){
         padding: "20px 40px",
         borderBottom: "1px solid #eee"
       }}>
-        <h2 style={{ color: green }}>IndiaCare AI</h2>
+        <h2 style={{ color: green }}>CareIndia AI</h2>
         <button
           onClick={() => navigate("/app")}
           style={{
@@ -89,7 +91,7 @@ export default function LandingPage(){
           <div style={{ maxWidth: "900px", margin: "auto" }}>
             <h2 style={{color:'black'}}>Our Solution</h2>
             <p style={{ color: "#444" }}>
-              IndiaCare AI provides instant, multilingual healthcare assistance using
+              CareIndia AI provides instant, multilingual healthcare assistance using
               voice input, real-time translation, and locally running AI models.
             </p>
           </div>
