@@ -1,6 +1,6 @@
 export default {
   plugins: {
-    tailwindcss: {},
+    '@tailwindcss/postcss': {}, // <-- THIS IS THE MAGIC FIX
     autoprefixer: {},
   },
 }
